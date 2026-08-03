@@ -1,0 +1,2460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AACE Venture Fund — Portfolio Dashboard</title>
+<meta name="description" content="Portfolio review dashboard for the AACE Venture Fund, the student-managed venture fund of the Robert J. Trulaske, Sr. College of Business at the University of Missouri." />
+
+<!-- Mizzou brand fonts (Font Set C free alternates): Morganite (Manuka alt) for statistics,
+     STIX Two Text (Martina Plantijn alt) for headlines/serif, Montserrat (Gotham alt) for body/UI -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Morganite:wght@500;600;700;800&family=STIX+Two+Text:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+
+<!-- React + Recharts via CDN (UMD builds) -->
+<script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { font-variant-numeric: tabular-nums; }
+  #root { min-height: 100vh; }
+  .aace-loading {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; font-family: 'Montserrat', sans-serif;
+    font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: #6B6B68; background: #FAFAF7;
+  }
+</style>
+</head>
+<body>
+<div id="root"><div class="aace-loading">Loading portfolio&hellip;</div></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect } = React;
+const {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Treemap,
+  LineChart,
+  Line,
+} = Recharts;
+
+// ============================================================
+// INLINE ICONS (replaces lucide-react for CDN build)
+// ============================================================
+function IconBase({ size = 16, style, children }) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24"
+      fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round"
+      style={style} aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+function Search(props) {
+  return (
+    <IconBase {...props}>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </IconBase>
+  );
+}
+function X(props) {
+  return (
+    <IconBase {...props}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </IconBase>
+  );
+}
+function Filter(props) {
+  return (
+    <IconBase {...props}>
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </IconBase>
+  );
+}
+
+// ============================================================
+// AACE LOGO (base64-encoded JPEG, 200×200)
+// ============================================================
+const AACE_LOGO = "data:image/jpeg;base64,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";
+
+// ============================================================
+// PORTFOLIO DATA
+// ============================================================
+const portfolioData = [
+  { id: 1, name: "RouteSense", year: 2025, status: "Fundraising", hq: "Austin, TX", state: "TX", industry: "Fintech / Payments", category: "Fintech" },
+  { id: 2, name: "Prezerv Ai", year: 2024, status: "Fundraising", hq: "Saint Louis, MO", state: "MO", industry: "Construction Technology", category: "Construction" },
+  { id: 3, name: "HiPR Innovation", year: 2023, status: "Alive", hq: "Austin, TX", state: "TX", industry: "Medical Device", category: "Healthcare" },
+  { id: 4, name: "Pure Blue Tech", year: 2023, status: "Alive", hq: "Bellingham, WA", state: "WA", industry: "Industrial Tech", category: "Industrial" },
+  { id: 5, name: "NeuroVR", year: 2021, status: "Fundraising", hq: "Fort Worth, TX", state: "TX", industry: "VR / AR Tech", category: "Technology" },
+  { id: 6, name: "Padl", year: 2021, status: "Fundraising", hq: "Key Biscayne, FL", state: "FL", industry: "Consumer Tech", category: "Consumer" },
+  { id: 7, name: "Kremenak", year: 2021, status: "Alive", hq: "Columbia, MO", state: "MO", industry: "Nanotechnology", category: "Technology" },
+  { id: 8, name: "Impetus AG", year: 2020, status: "Alive", hq: "Saint Louis, MO", state: "MO", industry: "Ag-Tech", category: "AgTech" },
+  { id: 9, name: "Swinetech", year: 2020, status: "Fundraising", hq: "Cedar Rapids, IA", state: "IA", industry: "Ag-Tech", category: "AgTech" },
+  { id: 10, name: "Bellwethr", year: 2019, status: "Acquired", hq: "Kansas City, KS", state: "KS", industry: "Revenue Retention Software", category: "Software" },
+  { id: 11, name: "Qstodian", year: 2018, status: "Bankrupt", hq: "Saint Louis, MO", state: "MO", industry: "Facility Management Software", category: "Software" },
+  { id: 12, name: "GRIT", year: 2017, status: "Acquired", hq: "Wichita, KS", state: "KS", industry: "Project Management Software", category: "Software" },
+  { id: 13, name: "Greetabl", year: 2017, status: "Bankrupt", hq: "Saint Louis, MO", state: "MO", industry: "Customer Gift Delivery", category: "Consumer" },
+  { id: 14, name: "RNAissance", year: 2016, status: "Acquired", hq: "Saint Louis, MO", state: "MO", industry: "Ag-Tech", category: "AgTech" },
+  { id: 15, name: "iNovotec", year: 2015, status: "Bankrupt", hq: "—", state: "—", industry: "Ag-Tech", category: "AgTech" },
+  { id: 16, name: "Knoda", year: 2014, status: "Bankrupt", hq: "Sabetha, KS", state: "KS", industry: "Consumer Application", category: "Consumer" },
+  { id: 17, name: "Eternogen", year: 2012, status: "Bankrupt", hq: "Columbia, MO", state: "MO", industry: "Cosmetic Products", category: "Healthcare" },
+  { id: 18, name: "Elemental Enzymes", year: 2012, status: "Partial Exit", hq: "Saint Louis, MO", state: "MO", industry: "Ag-Tech", category: "AgTech" },
+];
+
+// ============================================================
+// CAPITAL — invested amounts, marks, and realized proceeds
+// ============================================================
+// Standard ticket size for the fund. AACE typically deploys $50K per
+// investment; a few early deals were sized smaller and are overridden below.
+const TICKET_SIZE = 50000;
+
+// Per-company overrides. Sources are documented inline so reviewers can audit
+// each non-default number against its primary source. All values in USD.
+//
+//   - invested:          override the $50K default ticket size
+//   - currentMark:       fair value of AACE's position today (last priced-round
+//                        post-money × current ownership %, or company-stated
+//                        unrealized MOIC × cost basis)
+//   - realizedProceeds:  cash + liquid stock actually received from exits or
+//                        partial sales (cumulative across events)
+//   - markAsOf:          ISO date the mark or proceeds figure was sourced —
+//                        critical for judging staleness
+//   - source:            short citation for auditability
+//   - note:              optional context shown in the dashboard
+//
+// Sources: the November 2025 AACE Portfolio Company Updates deck and follow-up
+// conversations (Cam @ Prezerv re: pending Series A; Charlie Bolton re:
+// Kremenak SAFE round at high valuation, awaiting Jesse).
+const CAPITAL_OVERRIDES = {
+  // ---- Sub-$50K tickets ----
+  "Elemental Enzymes": {
+    invested: 30000,
+    realizedProceeds: 431000,            // $135K (2018 partial) + $296K (2023 partial, per slide 13 waterfall)
+    currentMark: 38000,                  // residual 100 shares per Nov 2025 deck
+    markAsOf: "2025-11-01",
+    source: "Nov 2025 update, slide 2",
+    note: "6.2x return on 2018 partial sale; 2023 partial sale to Paine Schwartz at confirmed $296K proceeds. Holds 100 residual shares.",
+  },
+  "Greetabl": {
+    invested: 30020,
+    realizedProceeds: 0,                 // "Assumed to have no residual value to shareholders"
+    markAsOf: "2022-12-01",
+    source: "Nov 2025 update, slide 16",
+  },
+
+  // ---- Active positions with sourced marks ----
+  "Impetus AG": {
+    currentMark: 185000,                 // 3.7x unrealized MOIC × $50K cost
+    markAsOf: "2024-03-01",              // last priced round: $750K seed led by UPL, March 2024
+    source: "Nov 2025 update, slide 4",
+    note: "Mark derived from company-stated 3.7x unrealized MOIC. Last priced round Mar 2024.",
+  },
+  "Padl": {
+    currentMark: 168500,                 // 3.37x unrealized MOIC × $50K
+    markAsOf: "2023-11-01",              // crowdfunding round at $20M pre-money
+    source: "Nov 2025 update, slide 7",
+    note: "Crowdfunding round at $20M pre-money. July 2025 $1M seed raised — mark may be stale.",
+  },
+  "NeuroVR": {
+    currentMark: 250000,                 // 5.0x+ estimated MOIC × $50K
+    markAsOf: "2024-06-01",              // approximate — Pre-Series A term sheet at $3.5M signing in progress
+    source: "Nov 2025 update, slide 6",
+    note: "Estimated MOIC; equity round paused, currently raising SAFE up to $2M matched by US Air Force.",
+  },
+  "Swinetech": {
+    currentMark: 90000,                  // 1.8x unrealized MOIC × $50K
+    markAsOf: "2025-02-01",              // $5.3M Series A closed Feb 2025
+    source: "Nov 2025 update, slide 10",
+    note: "Mark anchored to $5.3M Series A close, February 2025.",
+  },
+
+  // ---- Active positions with no current mark data ----
+  "HiPR Innovation": {
+    markAsOf: null,
+    source: "Nov 2025 update, slide 3",
+    note: "Valuation unknown per most recent update; still in testing phase.",
+  },
+  "Pure Blue Tech": {
+    markAsOf: null,
+    source: "Nov 2025 update, slide 8",
+    note: "Last priced round was $8M pre-money seed at investment. 2025 convertible note ($2.87M raised, $2M extension) does not establish a new priced valuation.",
+  },
+  "Kremenak": {
+    markAsOf: null,
+    source: "Nov 2025 update, slide 5; conversation with C. Bolton",
+    note: "Original SAFE at $6.5M cap with 20% discount. C. Bolton reports rumored new SAFE round at significantly higher valuation — pending confirmation from Jesse.",
+  },
+  "Prezerv Ai": {
+    markAsOf: null,
+    source: "Nov 2025 update, slide 11; pending update from Cam",
+    note: "Currently raising $250K to close $500K SAFE round; $5M Series A planned for 2026. Cam expected to share Series A details this week.",
+  },
+  "RouteSense": {
+    markAsOf: null,
+    note: "2025 vintage; no portfolio update yet on file.",
+  },
+
+  // ---- Resolved positions assumed worthless ----
+  "Bellwethr": {
+    realizedProceeds: 3833,              // $3,833 cash returned per 2023 model (slide 15)
+    markAsOf: "2023-07-01",              // Stay.AI Series A
+    source: "Nov 2025 update, slides 14–15",
+    note: "Acquired by Retextion Aug 2022; post-acquisition MOIC 0.08–0.39x depending on stock value treatment. AACE assumes no residual value.",
+  },
+  "GRIT": {
+    realizedProceeds: 0,
+    markAsOf: "2022-01-01",
+    source: "Nov 2025 update, slide 17",
+    note: "SAFE converted to 1.2% of Perseverance holding co. Inactive since 2022. AACE assumes no residual value.",
+  },
+  "RNAissance": {
+    realizedProceeds: 0,
+    markAsOf: "2024-01-01",
+    source: "Nov 2025 update, slide 9",
+    note: "TechAccel committed to fund only through 2024 with potential closure. Original IP considered non-viable. AACE assumes no residual value.",
+  },
+};
+
+// Apply overrides
+portfolioData.forEach(c => {
+  const ov = CAPITAL_OVERRIDES[c.name] || {};
+  c.invested = ov.invested ?? TICKET_SIZE;
+  c.currentMark = ov.currentMark ?? null;
+  c.realizedProceeds = ov.realizedProceeds ?? null;
+  c.markAsOf = ov.markAsOf ?? null;
+  c.markSource = ov.source ?? null;
+  c.markNote = ov.note ?? null;
+});
+
+// Honest fair-value rules per ASC 820 spirit:
+//  - Acquired / Partial Exit: realized proceeds if known, else cost basis as floor
+//  - Bankrupt: realized proceeds if known, else $0
+//  - Alive / Fundraising: current mark if known, else cost basis (held at cost)
+function fairValue(c) {
+  if (c.status === "Bankrupt") return c.realizedProceeds ?? 0;
+  if (c.status === "Acquired" || c.status === "Partial Exit") {
+    // For partial exits, residual mark stacks on top of realized proceeds
+    if (c.status === "Partial Exit" && c.currentMark !== null) {
+      return (c.realizedProceeds ?? 0) + c.currentMark;
+    }
+    return c.realizedProceeds ?? c.invested;
+  }
+  // Alive or Fundraising
+  return c.currentMark ?? c.invested;
+}
+function isMarked(c) {
+  if (c.status === "Bankrupt") return c.realizedProceeds !== null;
+  if (c.status === "Acquired" || c.status === "Partial Exit") return c.realizedProceeds !== null;
+  return c.currentMark !== null;
+}
+
+// ============================================================
+// BRAND TOKENS — Trulaske / Mizzou
+// Gold standardized to official MU Gold #F1B82D per brand.missouri.edu.
+// Tints/shades derived from #F1B82D. Accessibility rule enforced:
+// no gold text on white, no white text on gold.
+// ============================================================
+const COLORS = {
+  bg: "#FAFAF7",            // warm paper
+  ink: "#0A0A0A",           // deep black
+  inkSoft: "#262626",
+  rule: "#1A1A1A",
+  mute: "#6B6B68",
+  muteSoft: "#A8A89F",
+  paper: "#FFFFFF",
+  card: "#F4F2EC",
+  gold: "#F1B82D",          // MU Gold (official)
+  goldDeep: "#C9920E",
+  goldSoft: "#F7D488",
+  goldPale: "#FCF0D2",
+  bluff: "#453D3F",
+  limestone: "#D4D4D4",
+};
+
+// Status palette — restrained, brand-aligned
+const STATUS = {
+  Alive:        { bg: "#F4F2EC", fg: "#0A0A0A", dot: "#0A0A0A", chart: "#0A0A0A" },
+  Fundraising:  { bg: COLORS.goldPale, fg: "#6B4A00", dot: COLORS.gold, chart: COLORS.gold },
+  Acquired:     { bg: "#0A0A0A", fg: COLORS.gold, dot: COLORS.gold, chart: "#1A1A1A" },
+  "Partial Exit": { bg: COLORS.goldSoft, fg: "#0A0A0A", dot: COLORS.goldDeep, chart: COLORS.goldDeep },
+  Bankrupt:     { bg: "#FAFAF7", fg: "#6B6B68", dot: "#A8A89F", chart: "#C9C9C2" },
+};
+
+// ============================================================
+// DERIVED DATA
+// ============================================================
+const totals = {
+  count: portfolioData.length,
+  alive: portfolioData.filter(c => c.status === "Alive").length,
+  fundraising: portfolioData.filter(c => c.status === "Fundraising").length,
+  acquired: portfolioData.filter(c => c.status === "Acquired").length,
+  partial: portfolioData.filter(c => c.status === "Partial Exit").length,
+  bankrupt: portfolioData.filter(c => c.status === "Bankrupt").length,
+};
+totals.active = totals.alive + totals.fundraising;
+totals.exits = totals.acquired + totals.partial;
+totals.realized = totals.exits + totals.bankrupt;
+// Honest realized success rate = exits / (exits + failures)
+totals.realizedSuccessRate = totals.realized > 0
+  ? Math.round((totals.exits / totals.realized) * 100)
+  : 0;
+totals.states = new Set(portfolioData.filter(c => c.state !== "—").map(c => c.state)).size;
+totals.industries = new Set(portfolioData.map(c => c.category)).size;
+
+// ---- Capital totals ----
+const capital = {
+  deployed: portfolioData.reduce((s, c) => s + c.invested, 0),
+  // Deployed by status
+  activeAtCost: portfolioData.filter(c => c.status === "Alive" || c.status === "Fundraising")
+    .reduce((s, c) => s + c.invested, 0),
+  exitedAtCost: portfolioData.filter(c => c.status === "Acquired" || c.status === "Partial Exit")
+    .reduce((s, c) => s + c.invested, 0),
+  bankruptAtCost: portfolioData.filter(c => c.status === "Bankrupt")
+    .reduce((s, c) => s + c.invested, 0),
+};
+// Realized proceeds (cumulative cash returned to the fund)
+capital.realizedProceeds = portfolioData
+  .filter(c => c.realizedProceeds !== null)
+  .reduce((s, c) => s + (c.realizedProceeds || 0), 0);
+// Unrealized fair value of active positions (alive + fundraising)
+capital.activeFairValue = portfolioData
+  .filter(c => c.status === "Alive" || c.status === "Fundraising")
+  .reduce((s, c) => s + fairValue(c), 0);
+// Residual marks held in partial-exit positions (e.g. Elemental Enzymes)
+capital.residualFairValue = portfolioData
+  .filter(c => c.status === "Partial Exit" && c.currentMark !== null)
+  .reduce((s, c) => s + c.currentMark, 0);
+// Total portfolio fair value: realized + active marked + residual
+capital.totalFairValue = portfolioData.reduce((s, c) => s + fairValue(c), 0);
+// MOIC / TVPI = total fair value ÷ paid-in capital
+capital.tvpi = capital.deployed > 0 ? capital.totalFairValue / capital.deployed : 0;
+// DPI = realized proceeds ÷ paid-in capital
+capital.dpi = capital.deployed > 0 ? capital.realizedProceeds / capital.deployed : 0;
+// Coverage stats
+capital.companiesMarked = portfolioData.filter(isMarked).length;
+capital.companiesAtCost = portfolioData.length - capital.companiesMarked;
+capital.activeMarked = portfolioData
+  .filter(c => (c.status === "Alive" || c.status === "Fundraising") && isMarked(c)).length;
+capital.activeTotal = totals.active;
+
+const statusOrder = ["Alive", "Fundraising", "Acquired", "Partial Exit", "Bankrupt"];
+const statusBreakdown = statusOrder.map(s => ({
+  name: s,
+  value: portfolioData.filter(c => c.status === s).length,
+}));
+
+// Industry composition (sorted)
+const industryBreakdown = Array.from(
+  portfolioData.reduce((m, c) => m.set(c.category, (m.get(c.category) || 0) + 1), new Map())
+).map(([name, value]) => ({ name, value }))
+ .sort((a, b) => b.value - a.value);
+
+// State composition (sorted)
+const stateBreakdown = Array.from(
+  portfolioData.filter(c => c.state !== "—")
+    .reduce((m, c) => m.set(c.state, (m.get(c.state) || 0) + 1), new Map())
+).map(([name, value]) => ({ name, value }))
+ .sort((a, b) => b.value - a.value);
+
+// Vintage cohort: investments by year, broken out by realized outcome
+const yearsRange = [];
+for (let y = 2012; y <= 2025; y++) yearsRange.push(y);
+const vintageData = yearsRange.map(year => {
+  const cohort = portfolioData.filter(c => c.year === year);
+  return {
+    year: String(year),
+    Alive: cohort.filter(c => c.status === "Alive").length,
+    Fundraising: cohort.filter(c => c.status === "Fundraising").length,
+    Acquired: cohort.filter(c => c.status === "Acquired").length,
+    "Partial Exit": cohort.filter(c => c.status === "Partial Exit").length,
+    Bankrupt: cohort.filter(c => c.status === "Bankrupt").length,
+    total: cohort.length,
+  };
+});
+
+// Cumulative deployment line
+let running = 0;
+const cumulativeData = yearsRange.map(year => {
+  running += portfolioData.filter(c => c.year === year).length;
+  return { year: String(year), cumulative: running };
+});
+
+// Capital deployed by vintage (only years with deals)
+const vintageCapital = yearsRange
+  .map(year => {
+    const cohort = portfolioData.filter(c => c.year === year);
+    if (cohort.length === 0) return null;
+    return {
+      year: String(year),
+      deals: cohort.length,
+      deployed: cohort.reduce((s, c) => s + c.invested, 0),
+      fairValue: cohort.reduce((s, c) => s + fairValue(c), 0),
+      active: cohort.filter(c => c.status === "Alive" || c.status === "Fundraising").length,
+    };
+  })
+  .filter(Boolean)
+  .sort((a, b) => Number(b.year) - Number(a.year));
+
+// Industry performance table
+const industryPerf = industryBreakdown.map(({ name, value }) => {
+  const cos = portfolioData.filter(c => c.category === name);
+  const exits = cos.filter(c => c.status === "Acquired" || c.status === "Partial Exit").length;
+  const fails = cos.filter(c => c.status === "Bankrupt").length;
+  const active = cos.filter(c => c.status === "Alive" || c.status === "Fundraising").length;
+  const realized = exits + fails;
+  return {
+    name,
+    total: value,
+    active,
+    exits,
+    fails,
+    realizedRate: realized > 0 ? Math.round((exits / realized) * 100) : null,
+  };
+});
+
+// ============================================================
+// PRIMITIVES — Mizzou brand type system (Font Set C free alternates)
+//   Display/statistics: Morganite   (Manuka alternate — stats & numbers ≥30pt)
+//   Serif headlines:    STIX Two Text (Martina Plantijn alternate)
+//   Body/UI/labels:     Montserrat  (Gotham alternate)
+// ============================================================
+const fontStat = `'Morganite', 'Arial Narrow', Impact, sans-serif`;
+const fontHead = `'STIX Two Text', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif`;
+const fontBody = `'Montserrat', 'Avenir Next LT Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+const fontMono = `'Montserrat', 'Avenir Next LT Pro', -apple-system, sans-serif`;
+
+// Compact USD formatter — "$50K", "$1.2M", "$900K"
+function fmtUsd(n, { compact = true, withSign = false } = {}) {
+  if (n === null || n === undefined) return "—";
+  const sign = withSign && n > 0 ? "+" : "";
+  const abs = Math.abs(n);
+  if (!compact || abs < 1000) return `${sign}$${n.toLocaleString()}`;
+  if (abs < 1_000_000) {
+    const v = n / 1000;
+    return `${sign}$${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}K`;
+  }
+  const v = n / 1_000_000;
+  return `${sign}$${v % 1 === 0 ? v.toFixed(1) : v.toFixed(2)}M`;
+}
+
+function GoldSquare({ size = 10 }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        width: size,
+        height: size,
+        background: COLORS.gold,
+        verticalAlign: "middle",
+      }}
+      aria-hidden
+    />
+  );
+}
+
+function StatusPill({ status, dense = false }) {
+  const s = STATUS[status];
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        background: s.bg,
+        color: s.fg,
+        padding: dense ? "2px 8px" : "4px 10px",
+        fontSize: dense ? 10.5 : 11.5,
+        fontWeight: 600,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        fontFamily: fontBody,
+        borderRadius: 999,
+        border: `1px solid ${s.fg === COLORS.ink ? "rgba(0,0,0,0.08)" : "transparent"}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span
+        style={{
+          width: 6, height: 6, borderRadius: "50%",
+          background: s.dot, display: "inline-block",
+        }}
+      />
+      {status}
+    </span>
+  );
+}
+
+function MetricCard({ kicker, value, suffix, sub, accent = false }) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        background: accent ? COLORS.ink : COLORS.paper,
+        color: accent ? COLORS.paper : COLORS.ink,
+        padding: "28px 24px 24px",
+        border: `1px solid ${accent ? COLORS.ink : "rgba(0,0,0,0.08)"}`,
+        overflow: "hidden",
+      }}
+    >
+      {accent && (
+        <span style={{
+          position: "absolute", top: 0, left: 0,
+          width: 40, height: 8, background: COLORS.gold,
+        }} />
+      )}
+      <div style={{
+        fontFamily: fontMono,
+        fontSize: 10,
+        letterSpacing: "0.16em",
+        textTransform: "uppercase",
+        color: accent ? COLORS.goldSoft : COLORS.mute,
+        marginBottom: 14,
+      }}>
+        {kicker}
+      </div>
+      <div style={{
+        fontFamily: fontStat,
+        fontSize: 72,
+        fontWeight: 700,
+        lineHeight: 0.85,
+        letterSpacing: "0.01em",
+        color: accent ? COLORS.paper : COLORS.ink,
+      }}>
+        {value}
+        {suffix && (
+          <span style={{
+            fontFamily: fontHead,
+            fontSize: 22,
+            color: accent ? COLORS.gold : COLORS.mute,
+            marginLeft: 4,
+            fontWeight: 400,
+          }}>{suffix}</span>
+        )}
+      </div>
+      {sub && (
+        <div style={{
+          fontFamily: fontBody,
+          fontSize: 13,
+          color: accent ? "rgba(255,255,255,0.7)" : COLORS.mute,
+          marginTop: 14,
+          lineHeight: 1.4,
+        }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionHead({ chapter, title, subtitle }) {
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        fontFamily: fontMono, fontSize: 10.5,
+        letterSpacing: "0.22em", textTransform: "uppercase",
+        color: COLORS.mute, marginBottom: 14,
+      }}>
+        <GoldSquare size={8} />
+        {chapter}
+      </div>
+      <h2 style={{
+        fontFamily: fontHead,
+        fontSize: 38,
+        fontWeight: 500,
+        letterSpacing: "-0.02em",
+        lineHeight: 1.05,
+        color: COLORS.ink,
+        margin: 0,
+        marginBottom: subtitle ? 10 : 0,
+      }}>
+        {title}
+      </h2>
+      {subtitle && (
+        <p style={{
+          fontFamily: fontBody,
+          fontSize: 16,
+          lineHeight: 1.55,
+          color: COLORS.mute,
+          margin: 0,
+          maxWidth: 720,
+        }}>
+          {subtitle}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Panel({ title, eyebrow, children, footnote }) {
+  return (
+    <div style={{
+      background: COLORS.paper,
+      border: `1px solid rgba(0,0,0,0.08)`,
+      padding: 24,
+    }}>
+      {(title || eyebrow) && (
+        <div style={{ marginBottom: 20 }}>
+          {eyebrow && (
+            <div style={{
+              fontFamily: fontMono, fontSize: 10,
+              letterSpacing: "0.18em", textTransform: "uppercase",
+              color: COLORS.mute, marginBottom: 6,
+            }}>
+              {eyebrow}
+            </div>
+          )}
+          {title && (
+            <h3 style={{
+              fontFamily: fontHead, fontSize: 22, fontWeight: 500,
+              letterSpacing: "-0.01em", color: COLORS.ink, margin: 0,
+            }}>
+              {title}
+            </h3>
+          )}
+        </div>
+      )}
+      {children}
+      {footnote && (
+        <div style={{
+          fontFamily: fontBody, fontSize: 11.5, color: COLORS.muteSoft,
+          marginTop: 16, paddingTop: 12,
+          borderTop: `1px dashed rgba(0,0,0,0.1)`,
+          lineHeight: 1.5,
+        }}>
+          {footnote}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// CHARTS
+// ============================================================
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div style={{
+      background: COLORS.ink, color: COLORS.paper,
+      padding: "10px 14px",
+      fontFamily: fontBody, fontSize: 12,
+      border: `1px solid ${COLORS.gold}`,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+    }}>
+      {label !== undefined && (
+        <div style={{
+          fontFamily: fontMono, fontSize: 10,
+          letterSpacing: "0.12em", color: COLORS.gold,
+          marginBottom: 6, textTransform: "uppercase",
+        }}>{label}</div>
+      )}
+      {payload.filter(p => p.value !== 0).map((p, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0" }}>
+          <span style={{
+            width: 8, height: 8, background: p.color || p.fill,
+            display: "inline-block",
+          }} />
+          <span style={{ flex: 1 }}>{p.name}</span>
+          <span style={{ fontWeight: 600, fontFamily: fontMono }}>{p.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StatusBars() {
+  const max = Math.max(...statusBreakdown.map(s => s.value));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {statusBreakdown.map(({ name, value }) => {
+        const pct = (value / totals.count) * 100;
+        const widthPct = (value / max) * 100;
+        const s = STATUS[name];
+        return (
+          <div key={name}>
+            <div style={{
+              display: "flex", alignItems: "baseline", justifyContent: "space-between",
+              marginBottom: 6,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  width: 8, height: 8, background: s.dot,
+                  display: "inline-block", borderRadius: "50%",
+                }} />
+                <span style={{
+                  fontFamily: fontBody, fontSize: 13.5, fontWeight: 500,
+                  color: COLORS.ink,
+                }}>{name}</span>
+              </div>
+              <div style={{
+                fontFamily: fontMono, fontSize: 12, color: COLORS.mute,
+              }}>
+                <span style={{ color: COLORS.ink, fontWeight: 600 }}>{value}</span>
+                {" "}<span>· {pct.toFixed(0)}%</span>
+              </div>
+            </div>
+            <div style={{ height: 8, background: COLORS.card, position: "relative" }}>
+              <div style={{
+                position: "absolute", left: 0, top: 0, bottom: 0,
+                width: `${widthPct}%`,
+                background: s.chart,
+                transition: "width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)",
+              }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function VintageChart() {
+  return (
+    <div style={{ width: "100%", height: 320 }}>
+      <ResponsiveContainer>
+        <BarChart data={vintageData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          <CartesianGrid stroke="rgba(0,0,0,0.06)" vertical={false} />
+          <XAxis
+            dataKey="year"
+            stroke={COLORS.mute}
+            tick={{ fontSize: 11, fontFamily: fontMono, fill: COLORS.mute }}
+            axisLine={{ stroke: COLORS.ink }}
+            tickLine={{ stroke: COLORS.ink }}
+          />
+          <YAxis
+            stroke={COLORS.mute}
+            tick={{ fontSize: 11, fontFamily: fontMono, fill: COLORS.mute }}
+            axisLine={false}
+            tickLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(241,184,45,0.10)" }} />
+          <Bar dataKey="Acquired" stackId="a" fill={STATUS.Acquired.chart} />
+          <Bar dataKey="Partial Exit" stackId="a" fill={STATUS["Partial Exit"].chart} />
+          <Bar dataKey="Alive" stackId="a" fill="#3F3F3F" />
+          <Bar dataKey="Fundraising" stackId="a" fill={STATUS.Fundraising.chart} />
+          <Bar dataKey="Bankrupt" stackId="a" fill={STATUS.Bankrupt.chart} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function CumulativeChart() {
+  return (
+    <div style={{ width: "100%", height: 200 }}>
+      <ResponsiveContainer>
+        <LineChart data={cumulativeData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          <CartesianGrid stroke="rgba(0,0,0,0.06)" vertical={false} />
+          <XAxis
+            dataKey="year"
+            stroke={COLORS.mute}
+            tick={{ fontSize: 11, fontFamily: fontMono, fill: COLORS.mute }}
+            axisLine={{ stroke: COLORS.ink }}
+            tickLine={{ stroke: COLORS.ink }}
+          />
+          <YAxis
+            stroke={COLORS.mute}
+            tick={{ fontSize: 11, fontFamily: fontMono, fill: COLORS.mute }}
+            axisLine={false}
+            tickLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip content={<ChartTooltip />} />
+          <Line
+            type="monotone"
+            dataKey="cumulative"
+            name="Cumulative investments"
+            stroke={COLORS.ink}
+            strokeWidth={2}
+            dot={{ fill: COLORS.gold, stroke: COLORS.ink, strokeWidth: 1.5, r: 4 }}
+            activeDot={{ fill: COLORS.gold, stroke: COLORS.ink, strokeWidth: 2, r: 6 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function IndustryTreemap() {
+  // Recharts Treemap with custom content for editorial styling
+  const tones = [
+    COLORS.ink, "#3F3F3F", "#5C5C5C", COLORS.bluff,
+    COLORS.gold, COLORS.goldDeep, COLORS.goldSoft, COLORS.limestone,
+  ];
+  const treeData = industryBreakdown.map((d, i) => ({
+    name: d.name,
+    size: d.value,
+    fill: tones[i % tones.length],
+  }));
+  return (
+    <div style={{ width: "100%", height: 280 }}>
+      <ResponsiveContainer>
+        <Treemap
+          data={treeData}
+          dataKey="size"
+          stroke={COLORS.bg}
+          fill={COLORS.ink}
+          content={<TreemapCell />}
+          isAnimationActive={false}
+        />
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function TreemapCell(props) {
+  const { x, y, width, height, name, value, payload, depth } = props;
+  if (width <= 0 || height <= 0) return null;
+  // Only render leaf nodes (depth === 1 in Recharts Treemap)
+  if (depth !== undefined && depth !== 1) return null;
+  const fill = (payload && payload.fill) || props.fill;
+  const isDark = fill === COLORS.ink || fill === "#3F3F3F" || fill === "#5C5C5C" || fill === COLORS.bluff || fill === COLORS.goldDeep;
+  const txt = isDark ? COLORS.paper : COLORS.ink;
+  const showName = width > 70 && height > 36;
+  const showCount = width > 50 && height > 50;
+  const cellValue = value ?? (payload && payload.size);
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={fill} stroke={COLORS.bg} strokeWidth={2} />
+      {showName && (
+        <text
+          x={x + 12} y={y + 22}
+          fontFamily={fontBody} fontSize={13} fontWeight={600}
+          fill={txt}
+        >{name}</text>
+      )}
+      {showCount && (
+        <text
+          x={x + 12} y={y + height - 14}
+          fontFamily={fontHead} fontSize={Math.min(width / 4, height / 2.5, 36)}
+          fontWeight={500}
+          fill={txt}
+        >{cellValue}</text>
+      )}
+    </g>
+  );
+}
+
+function StateBars() {
+  const max = Math.max(...stateBreakdown.map(s => s.value));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {stateBreakdown.map(({ name, value }, i) => {
+        const widthPct = (value / max) * 100;
+        const isMO = name === "MO";
+        return (
+          <div key={name} style={{ display: "grid", gridTemplateColumns: "44px 1fr 36px", alignItems: "center", gap: 12 }}>
+            <span style={{
+              fontFamily: fontMono, fontSize: 12.5, fontWeight: 600,
+              color: isMO ? COLORS.ink : COLORS.mute,
+              letterSpacing: "0.04em",
+            }}>{name}</span>
+            <div style={{ height: 22, background: COLORS.card, position: "relative" }}>
+              <div style={{
+                position: "absolute", left: 0, top: 0, bottom: 0,
+                width: `${widthPct}%`,
+                background: isMO ? COLORS.gold : COLORS.ink,
+                transition: "width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)",
+              }} />
+              {isMO && (
+                <span style={{
+                  position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
+                  fontFamily: fontMono, fontSize: 10, fontWeight: 600,
+                  color: COLORS.ink, letterSpacing: "0.1em", textTransform: "uppercase",
+                }}>HOME</span>
+              )}
+            </div>
+            <span style={{
+              fontFamily: fontHead, fontSize: 18, fontWeight: 500,
+              color: COLORS.ink, textAlign: "right",
+            }}>{value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// COMPANY TABLE
+// ============================================================
+function CompanyExplorer() {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("year");
+  const [sortDir, setSortDir] = useState("desc");
+
+  const filtered = useMemo(() => {
+    let rows = portfolioData.filter(c => {
+      const matchQuery = !query ||
+        c.name.toLowerCase().includes(query.toLowerCase()) ||
+        c.industry.toLowerCase().includes(query.toLowerCase()) ||
+        c.hq.toLowerCase().includes(query.toLowerCase());
+      const matchStatus = statusFilter === "All" || c.status === statusFilter;
+      return matchQuery && matchStatus;
+    });
+    rows.sort((a, b) => {
+      let av = a[sortBy], bv = b[sortBy];
+      if (typeof av === "string") { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return rows;
+  }, [query, statusFilter, sortBy, sortDir]);
+
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortBy(col); setSortDir(col === "year" ? "desc" : "asc"); }
+  };
+
+  const SortHeader = ({ col, children, align = "left", width }) => (
+    <th
+      onClick={() => toggleSort(col)}
+      style={{
+        textAlign: align,
+        padding: "14px 16px",
+        fontFamily: fontMono,
+        fontSize: 10,
+        letterSpacing: "0.18em",
+        textTransform: "uppercase",
+        color: COLORS.mute,
+        fontWeight: 600,
+        cursor: "pointer",
+        userSelect: "none",
+        whiteSpace: "nowrap",
+        width,
+        borderBottom: `1px solid ${COLORS.ink}`,
+      }}
+    >
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        {children}
+        {sortBy === col && (
+          <span style={{ color: COLORS.ink, fontSize: 10 }}>
+            {sortDir === "asc" ? "↑" : "↓"}
+          </span>
+        )}
+      </span>
+    </th>
+  );
+
+  return (
+    <div>
+      {/* Filter row */}
+      <div style={{
+        display: "flex", flexWrap: "wrap", gap: 12,
+        marginBottom: 20, alignItems: "center",
+      }}>
+        <div style={{
+          position: "relative", flex: "1 1 280px", minWidth: 240,
+        }}>
+          <Search style={{
+            position: "absolute", left: 14, top: "50%",
+            transform: "translateY(-50%)",
+            width: 14, height: 14, color: COLORS.mute,
+          }} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search company, industry, or HQ"
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "10px 36px 10px 38px",
+              background: COLORS.paper,
+              border: `1px solid rgba(0,0,0,0.15)`,
+              fontFamily: fontBody,
+              fontSize: 13.5,
+              color: COLORS.ink,
+              outline: "none",
+            }}
+            onFocus={(e) => e.target.style.borderColor = COLORS.gold}
+            onBlur={(e) => e.target.style.borderColor = "rgba(0,0,0,0.15)"}
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              style={{
+                position: "absolute", right: 8, top: "50%",
+                transform: "translateY(-50%)",
+                background: "transparent", border: "none",
+                cursor: "pointer", padding: 4, color: COLORS.mute,
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Filter size={14} style={{ color: COLORS.mute }} />
+          {["All", ...statusOrder].map(s => {
+            const isActive = statusFilter === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                style={{
+                  padding: "6px 12px",
+                  fontFamily: fontBody,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  letterSpacing: "0.02em",
+                  cursor: "pointer",
+                  background: isActive ? COLORS.ink : "transparent",
+                  color: isActive ? COLORS.gold : COLORS.ink,
+                  border: `1px solid ${isActive ? COLORS.ink : "rgba(0,0,0,0.18)"}`,
+                  borderRadius: 999,
+                  transition: "all 0.2s",
+                }}
+              >{s}</button>
+            );
+          })}
+        </div>
+
+        <div style={{
+          marginLeft: "auto",
+          fontFamily: fontMono, fontSize: 11,
+          letterSpacing: "0.12em", textTransform: "uppercase",
+          color: COLORS.mute,
+        }}>
+          {filtered.length} of {portfolioData.length}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: "auto", border: `1px solid rgba(0,0,0,0.08)` }}>
+        <table style={{
+          width: "100%", borderCollapse: "collapse",
+          background: COLORS.paper,
+        }}>
+          <thead>
+            <tr>
+              <SortHeader col="name">Company</SortHeader>
+              <SortHeader col="year" align="center" width={90}>Vintage</SortHeader>
+              <SortHeader col="status" width={150}>Status</SortHeader>
+              <SortHeader col="hq">Headquarters</SortHeader>
+              <SortHeader col="industry">Industry</SortHeader>
+              <th style={{
+                padding: "14px 16px", textAlign: "right",
+                fontFamily: fontMono, fontSize: 10,
+                letterSpacing: "0.18em", textTransform: "uppercase",
+                color: COLORS.mute, fontWeight: 600,
+                borderBottom: `1px solid ${COLORS.ink}`, width: 80,
+              }}>Age</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{
+                  padding: 60, textAlign: "center",
+                  fontFamily: fontBody, color: COLORS.mute, fontSize: 14,
+                }}>
+                  No companies match your filters.
+                </td>
+              </tr>
+            ) : filtered.map((c, i) => (
+              <tr
+                key={c.id}
+                style={{
+                  borderBottom: i === filtered.length - 1 ? "none" : `1px solid rgba(0,0,0,0.06)`,
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = COLORS.card}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                <td style={{ padding: "14px 16px" }}>
+                  <div style={{
+                    fontFamily: fontHead, fontSize: 16, fontWeight: 500,
+                    color: COLORS.ink, letterSpacing: "-0.005em",
+                  }}>{c.name}</div>
+                </td>
+                <td style={{
+                  padding: "14px 16px", textAlign: "center",
+                  fontFamily: fontMono, fontSize: 13, color: COLORS.inkSoft,
+                }}>{c.year}</td>
+                <td style={{ padding: "14px 16px" }}>
+                  <StatusPill status={c.status} dense />
+                </td>
+                <td style={{
+                  padding: "14px 16px",
+                  fontFamily: fontBody, fontSize: 13, color: COLORS.inkSoft,
+                }}>{c.hq}</td>
+                <td style={{
+                  padding: "14px 16px",
+                  fontFamily: fontBody, fontSize: 13, color: COLORS.inkSoft,
+                }}>{c.industry}</td>
+                <td style={{
+                  padding: "14px 16px", textAlign: "right",
+                  fontFamily: fontMono, fontSize: 12, color: COLORS.mute,
+                }}>{2026 - c.year}y</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SECTION NAV (sticky)
+// ============================================================
+const NAV_SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "capital", label: "Capital" },
+  { id: "performance", label: "Performance" },
+  { id: "vintage", label: "Vintage" },
+  { id: "geography", label: "Geography" },
+  { id: "industry", label: "Industry" },
+  { id: "companies", label: "Companies" },
+];
+
+function StickyNav() {
+  const [active, setActive] = useState("overview");
+
+  useEffect(() => {
+    const handler = () => {
+      let cur = "overview";
+      for (const s of NAV_SECTIONS) {
+        const el = document.getElementById(s.id);
+        if (el && el.getBoundingClientRect().top < 160) cur = s.id;
+      }
+      setActive(cur);
+    };
+    handler();
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+
+  // Explicit click handler — works reliably in both iframed artifact contexts
+  // and standalone browser windows. Uses scrollIntoView (the standard API)
+  // instead of computed offsets, since scrollMarginTop on each section
+  // handles the sticky-nav offset automatically.
+  const handleNavClick = (e, id) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = document.getElementById(id);
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (err) {
+      // Fallback for older browsers that don't support smooth option object
+      el.scrollIntoView();
+    }
+    if (history.replaceState) history.replaceState(null, "", `#${id}`);
+    setActive(id);
+  };
+
+  return (
+    <nav style={{
+      position: "sticky", top: 0, zIndex: 50,
+      background: "rgba(250, 250, 247, 0.92)",
+      backdropFilter: "blur(8px)",
+      WebkitBackdropFilter: "blur(8px)",
+      borderBottom: `1px solid rgba(0,0,0,0.08)`,
+    }}>
+      <div style={{
+        maxWidth: 1280, margin: "0 auto",
+        padding: "0 32px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        height: 56,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <img
+            src={AACE_LOGO}
+            alt="AACE Venture Fund"
+            style={{
+              width: 38, height: 38,
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
+          <span style={{
+            fontFamily: fontHead, fontSize: 15, fontWeight: 500,
+            color: COLORS.ink, letterSpacing: "-0.01em",
+          }}>AACE Venture Fund</span>
+          <span style={{
+            fontFamily: fontMono, fontSize: 10,
+            letterSpacing: "0.16em", textTransform: "uppercase",
+            color: COLORS.mute,
+            display: "inline-block",
+          }} className="aace-nav-meta">Portfolio Review · Mar 2026</span>
+        </div>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }} className="aace-nav-links">
+          {NAV_SECTIONS.map(s => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={(e) => handleNavClick(e, s.id)}
+              style={{
+                padding: "6px 12px",
+                fontFamily: fontBody, fontSize: 12.5,
+                fontWeight: active === s.id ? 600 : 500,
+                color: active === s.id ? COLORS.ink : COLORS.mute,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                position: "relative",
+                letterSpacing: "0.01em",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={(e) => { if (active !== s.id) e.currentTarget.style.color = COLORS.ink; }}
+              onMouseLeave={(e) => { if (active !== s.id) e.currentTarget.style.color = COLORS.mute; }}
+            >
+              {s.label}
+              {active === s.id && (
+                <span style={{
+                  position: "absolute", bottom: -19, left: 12, right: 12,
+                  height: 2, background: COLORS.gold,
+                }} />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// ============================================================
+// MAIN
+// ============================================================
+function App() {
+  // Insights derivations
+  const moCount = stateBreakdown.find(s => s.name === "MO")?.value || 0;
+  const moPct = Math.round((moCount / portfolioData.filter(c => c.state !== "—").length) * 100);
+  const txCount = stateBreakdown.find(s => s.name === "TX")?.value || 0;
+  const recentCount = portfolioData.filter(c => c.year >= 2020).length;
+  const matureCount = portfolioData.filter(c => c.year < 2020).length;
+  const matureExits = portfolioData.filter(c => c.year < 2020 && (c.status === "Acquired" || c.status === "Partial Exit")).length;
+  const matureFails = portfolioData.filter(c => c.year < 2020 && c.status === "Bankrupt").length;
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: COLORS.bg,
+      color: COLORS.ink,
+      fontFamily: fontBody,
+    }}>
+      <StickyNav />
+
+      {/* HEADER / MASTHEAD */}
+      <header style={{ background: COLORS.bg, borderBottom: `1px solid rgba(0,0,0,0.08)` }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "56px 32px 48px" }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between",
+            alignItems: "flex-start", gap: 32, flexWrap: "wrap",
+          }}>
+            <div style={{ flex: "1 1 540px" }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 18,
+                marginBottom: 28,
+              }}>
+                <img
+                  src={AACE_LOGO}
+                  alt="AACE Venture Fund"
+                  style={{
+                    width: 86, height: 86,
+                    objectFit: "contain",
+                    display: "block",
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{
+                  paddingLeft: 18,
+                  borderLeft: `1px solid rgba(0,0,0,0.12)`,
+                  fontFamily: fontMono, fontSize: 10.5,
+                  letterSpacing: "0.2em", textTransform: "uppercase",
+                  color: COLORS.mute, lineHeight: 1.6,
+                }}>
+                  Robert J. Trulaske, Sr.<br />
+                  College of Business<br />
+                  <span style={{ color: COLORS.ink }}>University of Missouri</span>
+                </div>
+              </div>
+              <h1 style={{
+                fontFamily: fontHead,
+                fontSize: "clamp(48px, 6vw, 84px)",
+                fontWeight: 500,
+                lineHeight: 0.95,
+                letterSpacing: "-0.03em",
+                color: COLORS.ink,
+                margin: 0,
+                marginBottom: 24,
+              }}>
+                Portfolio<br/>
+                <span style={{ fontStyle: "italic", color: COLORS.inkSoft }}>in review.</span>
+              </h1>
+              <p style={{
+                fontFamily: fontBody, fontSize: 18, lineHeight: 1.5,
+                color: COLORS.inkSoft, maxWidth: 560, margin: 0,
+              }}>
+                Fourteen vintages of student-led venture capital. Eighteen
+                companies, eight industries, {fmtUsd(capital.deployed)} deployed
+                from the heart of the Midwest since 2012.
+              </p>
+            </div>
+
+            <aside style={{
+              flex: "0 0 280px",
+              background: COLORS.ink, color: COLORS.paper,
+              padding: "24px 24px 28px",
+              position: "relative",
+            }}>
+              <span style={{
+                position: "absolute", top: 0, left: 0,
+                width: 48, height: 8, background: COLORS.gold,
+              }} />
+              <div style={{
+                fontFamily: fontMono, fontSize: 10,
+                letterSpacing: "0.2em", textTransform: "uppercase",
+                color: COLORS.gold, marginBottom: 18,
+              }}>Report Snapshot</div>
+              {[
+                ["As of", "March 6, 2026"],
+                ["Vintages", "2012 — 2025"],
+                ["Companies", String(totals.count)],
+                ["Capital deployed", fmtUsd(capital.deployed)],
+                ["Total fair value", fmtUsd(capital.totalFairValue)],
+                ["TVPI", `${capital.tvpi.toFixed(2)}×`],
+              ].map(([k, v], i) => (
+                <div key={k} style={{
+                  display: "flex", justifyContent: "space-between",
+                  padding: "8px 0",
+                  borderTop: i === 0 ? `1px solid rgba(255,255,255,0.15)` : "none",
+                  borderBottom: `1px solid rgba(255,255,255,0.15)`,
+                  fontSize: 13,
+                }}>
+                  <span style={{ color: "rgba(255,255,255,0.6)", fontFamily: fontBody }}>{k}</span>
+                  <span style={{ fontFamily: fontMono, fontWeight: 600 }}>{v}</span>
+                </div>
+              ))}
+            </aside>
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTENT */}
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px" }}>
+
+        {/* OVERVIEW — KPIs */}
+        <section id="overview" style={{ padding: "72px 0 48px", scrollMarginTop: 72 }}>
+          <SectionHead
+            chapter="01 · Overview"
+            title="The fund at a glance."
+            subtitle="Headline metrics across all vintages. The fund is judged on realized outcomes — exits over the realized base of exits plus failures — not on unproven, still-active positions."
+          />
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 1, background: "rgba(0,0,0,0.08)",
+            border: `1px solid rgba(0,0,0,0.08)`,
+          }}>
+            <MetricCard
+              kicker="Total Investments"
+              value={totals.count}
+              sub="Deployed across 14 vintages since 2012."
+            />
+            <MetricCard
+              kicker="Active Portfolio"
+              value={totals.active}
+              sub={`${totals.alive} operating · ${totals.fundraising} fundraising`}
+            />
+            <MetricCard
+              kicker="Realized Exits"
+              value={totals.exits}
+              sub={`${totals.acquired} acquisitions · ${totals.partial} partial exit`}
+            />
+            <MetricCard
+              kicker="Realized Win Rate"
+              value={totals.realizedSuccessRate}
+              suffix="%"
+              sub={`${totals.exits} of ${totals.realized} resolved positions`}
+              accent
+            />
+          </div>
+
+          <div style={{
+            marginTop: 24,
+            fontFamily: fontBody, fontSize: 13, color: COLORS.mute,
+            lineHeight: 1.55, maxWidth: 760,
+          }}>
+            <span style={{ color: COLORS.ink, fontWeight: 600 }}>Methodology · </span>
+            Realized win rate excludes the {totals.active} positions still active or fundraising.
+            It measures resolved outcomes only — exits divided by exits plus bankruptcies.
+            Active holdings will move into the numerator or denominator over time.
+          </div>
+        </section>
+
+        {/* CAPITAL */}
+        <CapitalSection />
+
+        {/* PERFORMANCE */}
+        <section id="performance" style={{ padding: "48px 0", scrollMarginTop: 72 }}>
+          <SectionHead
+            chapter="03 · Performance"
+            title="Outcomes by status."
+            subtitle="The portfolio's current state. Active positions weighted toward recent vintages; resolved outcomes concentrate in 2012 — 2019 cohorts."
+          />
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 24,
+          }}
+          className="aace-2col">
+            <Panel
+              eyebrow="Status Composition"
+              title="Where capital sits today"
+              footnote="Active = Alive or Fundraising. Realized = Acquired, Partial Exit, or Bankrupt."
+            >
+              <StatusBars />
+            </Panel>
+            <Panel
+              eyebrow="Maturity Lens"
+              title="Mature cohort (pre-2020)"
+              footnote="Cohorts five years old or more have had time to resolve. Recent vintages (2020+) are too young to assess on outcomes."
+            >
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+                <CohortBlock label="Mature companies" value={matureCount} sub="Vintage < 2020" />
+                <CohortBlock label="Recent companies" value={recentCount} sub="Vintage 2020+" />
+                <CohortBlock label="Mature exits" value={matureExits} sub={`${matureCount > 0 ? Math.round((matureExits/matureCount)*100) : 0}% of mature cohort`} highlight />
+                <CohortBlock label="Mature failures" value={matureFails} sub={`${matureCount > 0 ? Math.round((matureFails/matureCount)*100) : 0}% of mature cohort`} />
+              </div>
+            </Panel>
+          </div>
+        </section>
+
+        {/* VINTAGE */}
+        <section id="vintage" style={{ padding: "48px 0", scrollMarginTop: 72 }}>
+          <SectionHead
+            chapter="04 · Vintage Analysis"
+            title="Investments by year of entry."
+            subtitle="Each bar is a vintage cohort, segmented by current status. The line beneath tracks cumulative deployment."
+          />
+          <Panel eyebrow="Cohort Outcomes" title="Status by vintage year (2012 — 2025)">
+            <VintageChart />
+            <div style={{
+              display: "flex", gap: 16, flexWrap: "wrap",
+              marginTop: 16, paddingTop: 16,
+              borderTop: `1px dashed rgba(0,0,0,0.1)`,
+            }}>
+              {[
+                { name: "Acquired", color: STATUS.Acquired.chart },
+                { name: "Partial Exit", color: STATUS["Partial Exit"].chart },
+                { name: "Alive", color: "#3F3F3F" },
+                { name: "Fundraising", color: STATUS.Fundraising.chart },
+                { name: "Bankrupt", color: STATUS.Bankrupt.chart },
+              ].map(l => (
+                <div key={l.name} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  fontFamily: fontBody, fontSize: 12, color: COLORS.inkSoft,
+                }}>
+                  <span style={{ width: 10, height: 10, background: l.color }} />
+                  {l.name}
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <div style={{ marginTop: 24 }}>
+            <Panel eyebrow="Pacing" title="Cumulative companies under management">
+              <CumulativeChart />
+            </Panel>
+          </div>
+        </section>
+
+        {/* GEOGRAPHY */}
+        <section id="geography" style={{ padding: "48px 0", scrollMarginTop: 72 }}>
+          <SectionHead
+            chapter="05 · Geography"
+            title="Where the portfolio lives."
+            subtitle="Heavily anchored in Missouri — by design — with a meaningful Texas presence and selective coastal coverage."
+          />
+          <div style={{
+            display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 24,
+          }} className="aace-2col">
+            <Panel eyebrow="State Distribution" title="Investments by headquarters">
+              <StateBars />
+            </Panel>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <InsightTile
+                kicker="Home market"
+                value="Missouri"
+                stat={`${moCount} companies · ${moPct}% of placed capital`}
+                description="Saint Louis dominates with five investments; Columbia adds two more — anchoring the fund's local flywheel."
+                tone="gold"
+              />
+              <InsightTile
+                kicker="Emerging hub"
+                value="Texas"
+                stat={`${txCount} companies · all currently active`}
+                description="Austin and Fort Worth deals span fintech, medical device, and immersive technology — the fund's most concentrated growth region after MO."
+                tone="dark"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* INDUSTRY */}
+        <section id="industry" style={{ padding: "48px 0", scrollMarginTop: 72 }}>
+          <SectionHead
+            chapter="06 · Industry"
+            title="Sector composition."
+            subtitle="AgTech and Software lead by deal count. Realized rate is computed only across resolved positions within each sector."
+          />
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24,
+          }} className="aace-2col">
+            <Panel eyebrow="Composition" title="Capital deployed by sector">
+              <IndustryTreemap />
+            </Panel>
+            <Panel
+              eyebrow="Sector Performance"
+              title="Resolved outcomes by industry"
+              footnote="Realized rate = exits ÷ (exits + failures). Sectors with no resolved positions show '—' until a position resolves."
+            >
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      {["Sector", "Total", "Active", "Exits", "Failed", "Realized"].map((h, i) => (
+                        <th key={h} style={{
+                          padding: "10px 8px",
+                          textAlign: i === 0 ? "left" : "right",
+                          fontFamily: fontMono, fontSize: 9.5,
+                          letterSpacing: "0.16em", textTransform: "uppercase",
+                          color: COLORS.mute, fontWeight: 600,
+                          borderBottom: `1px solid ${COLORS.ink}`,
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {industryPerf.map((r, i) => (
+                      <tr key={r.name} style={{
+                        borderBottom: i === industryPerf.length - 1 ? "none" : `1px solid rgba(0,0,0,0.06)`,
+                      }}>
+                        <td style={{
+                          padding: "12px 8px",
+                          fontFamily: fontBody, fontSize: 13, fontWeight: 500,
+                          color: COLORS.ink,
+                        }}>{r.name}</td>
+                        <td style={cellNum}>{r.total}</td>
+                        <td style={{ ...cellNum, color: COLORS.inkSoft }}>{r.active}</td>
+                        <td style={{ ...cellNum, color: COLORS.ink, fontWeight: 600 }}>{r.exits}</td>
+                        <td style={{ ...cellNum, color: COLORS.muteSoft }}>{r.fails}</td>
+                        <td style={{
+                          ...cellNum,
+                          fontFamily: fontHead, fontSize: 16, fontWeight: 500,
+                          color: r.realizedRate === null ? COLORS.muteSoft :
+                                 r.realizedRate >= 50 ? COLORS.ink : COLORS.mute,
+                        }}>
+                          {r.realizedRate === null ? "—" : `${r.realizedRate}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          </div>
+        </section>
+
+        {/* COMPANIES */}
+        <section id="companies" style={{ padding: "48px 0 96px", scrollMarginTop: 72 }}>
+          <SectionHead
+            chapter="07 · Companies"
+            title="The full roster."
+            subtitle="Search, filter, and sort the eighteen companies that make up the portfolio. Click a column header to reorder."
+          />
+          <CompanyExplorer />
+        </section>
+      </main>
+
+      {/* FOOTER */}
+      <footer style={{
+        background: COLORS.ink, color: COLORS.paper,
+        padding: "56px 32px 32px", marginTop: 0,
+      }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 32, paddingBottom: 32,
+            borderBottom: `1px solid rgba(255,255,255,0.12)`,
+          }}>
+            <div>
+              <div style={{
+                display: "inline-flex", padding: 10,
+                background: COLORS.paper, marginBottom: 16,
+              }}>
+                <img
+                  src={AACE_LOGO}
+                  alt="AACE Venture Fund"
+                  style={{ width: 67, height: 67, objectFit: "contain", display: "block" }}
+                />
+              </div>
+              <div style={{
+                fontFamily: fontHead, fontSize: 18, fontWeight: 500,
+                marginBottom: 8, letterSpacing: "-0.005em",
+              }}>AACE Venture Fund</div>
+              <div style={{
+                fontFamily: fontBody, fontSize: 13,
+                color: "rgba(255,255,255,0.65)", lineHeight: 1.55,
+              }}>
+                A student-managed venture fund within the Robert J. Trulaske, Sr.
+                College of Business at the University of Missouri.
+              </div>
+            </div>
+            <div>
+              <div style={{
+                fontFamily: fontMono, fontSize: 10,
+                letterSpacing: "0.2em", textTransform: "uppercase",
+                color: COLORS.gold, marginBottom: 12,
+              }}>Portfolio</div>
+              <div style={{ fontFamily: fontBody, fontSize: 13, lineHeight: 2, color: "rgba(255,255,255,0.85)" }}>
+                {totals.count} companies<br />
+                {totals.exits} successful exits<br />
+                {totals.industries} industries<br />
+                {totals.states} states
+              </div>
+            </div>
+            <div>
+              <div style={{
+                fontFamily: fontMono, fontSize: 10,
+                letterSpacing: "0.2em", textTransform: "uppercase",
+                color: COLORS.gold, marginBottom: 12,
+              }}>Reporting</div>
+              <div style={{ fontFamily: fontBody, fontSize: 13, lineHeight: 1.6, color: "rgba(255,255,255,0.85)" }}>
+                Data as of March 6, 2026.<br />
+                Prepared for stakeholder review and portfolio tracking.
+              </div>
+            </div>
+          </div>
+          <div style={{
+            paddingTop: 24,
+            display: "flex", justifyContent: "space-between",
+            flexWrap: "wrap", gap: 16,
+            fontFamily: fontMono, fontSize: 10.5,
+            letterSpacing: "0.16em", textTransform: "uppercase",
+            color: "rgba(255,255,255,0.5)",
+          }}>
+            <span>© 2026 AACE Venture Fund</span>
+            <span>Robert J. Trulaske, Sr. College of Business</span>
+            <span>University of Missouri</span>
+          </div>
+        </div>
+      </footer>
+
+      {/* Inline responsive styles */}
+      <style>{`
+        @media (max-width: 1080px) {
+          .aace-nav-meta { display: none !important; }
+        }
+        @media (max-width: 880px) {
+          .aace-2col { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 720px) {
+          .aace-nav-links { gap: 0 !important; }
+          .aace-nav-links button { padding: 6px 8px !important; font-size: 11.5px !important; }
+        }
+        ::selection { background: ${COLORS.gold}; color: ${COLORS.ink}; }
+        button { font-family: inherit; }
+      `}</style>
+    </div>
+  );
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+const cellNum = {
+  padding: "12px 8px",
+  textAlign: "right",
+  fontFamily: fontMono,
+  fontSize: 13,
+  color: "#262626",
+};
+
+// ============================================================
+// CAPITAL SECTION
+// ============================================================
+function CapitalSection() {
+  // Deployed $ broken down by status, ordered same as statusBreakdown
+  const capitalByStatus = statusOrder.map(s => {
+    const cos = portfolioData.filter(c => c.status === s);
+    return {
+      name: s,
+      deployed: cos.reduce((sum, c) => sum + c.invested, 0),
+      count: cos.length,
+    };
+  });
+  const maxDeployed = Math.max(...capitalByStatus.map(s => s.deployed));
+
+  return (
+    <section id="capital" style={{ padding: "48px 0", scrollMarginTop: 72 }}>
+      <SectionHead
+        chapter="02 · Capital"
+        title="Capital deployed."
+        subtitle="Marks reflect last priced rounds and company-stated MOICs sourced from the November 2025 portfolio company update. Positions without a verifiable recent valuation are held at cost as a conservative floor."
+      />
+
+      {/* KPI strip */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: 1, background: "rgba(0,0,0,0.08)",
+        border: `1px solid rgba(0,0,0,0.08)`,
+      }}>
+        <MetricCard
+          kicker="Total Deployed"
+          value={fmtUsd(capital.deployed)}
+          sub={`${totals.count} investments · standard $${(TICKET_SIZE/1000).toFixed(0)}K ticket (two early deals at $30K)`}
+        />
+        <MetricCard
+          kicker="Active Fair Value"
+          value={fmtUsd(capital.activeFairValue)}
+          sub={`${capital.activeMarked} of ${totals.active} active positions carry a verified mark`}
+        />
+        <MetricCard
+          kicker="Realized Proceeds"
+          value={fmtUsd(capital.realizedProceeds)}
+          sub={`From ${portfolioData.filter(c => c.realizedProceeds !== null).length} resolved positions · DPI ${capital.dpi.toFixed(2)}×`}
+        />
+        <MetricCard
+          kicker="TVPI · Total Multiple"
+          value={`${capital.tvpi.toFixed(2)}×`}
+          sub={`${fmtUsd(capital.totalFairValue)} total value ÷ ${fmtUsd(capital.deployed)} paid-in`}
+          accent
+        />
+      </div>
+
+      {/* Two-column: by-status bars + marking coverage */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1.3fr 1fr",
+        gap: 24,
+        marginTop: 24,
+      }} className="aace-2col">
+        {/* Capital by status */}
+        <Panel
+          eyebrow="Capital Allocation"
+          title="Deployed dollars by status"
+          footnote="Each bar shows the cost basis of capital deployed to companies currently in that status."
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {capitalByStatus.map(({ name, deployed, count }) => {
+              const widthPct = (deployed / maxDeployed) * 100;
+              const s = STATUS[name];
+              return (
+                <div key={name}>
+                  <div style={{
+                    display: "flex", alignItems: "baseline", justifyContent: "space-between",
+                    marginBottom: 6,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{
+                        width: 8, height: 8, background: s.dot,
+                        display: "inline-block", borderRadius: "50%",
+                      }} />
+                      <span style={{
+                        fontFamily: fontBody, fontSize: 13.5, fontWeight: 500,
+                        color: COLORS.ink,
+                      }}>{name}</span>
+                      <span style={{
+                        fontFamily: fontMono, fontSize: 11, color: COLORS.muteSoft,
+                      }}>{count} {count === 1 ? "co." : "cos."}</span>
+                    </div>
+                    <div style={{
+                      fontFamily: fontHead, fontSize: 18, fontWeight: 500,
+                      color: COLORS.ink, letterSpacing: "-0.01em",
+                    }}>{fmtUsd(deployed)}</div>
+                  </div>
+                  <div style={{ height: 8, background: COLORS.card, position: "relative" }}>
+                    <div style={{
+                      position: "absolute", left: 0, top: 0, bottom: 0,
+                      width: `${widthPct}%`,
+                      background: s.chart,
+                      transition: "width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)",
+                    }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+
+        {/* Marking coverage */}
+        <Panel
+          eyebrow="Mark Coverage"
+          title="How much we know"
+          footnote="Marks update as portfolio companies share their most recent priced-round data with the fund."
+        >
+          <MarkCoverageWidget />
+        </Panel>
+      </div>
+
+      {/* Vintage capital table */}
+      <div style={{ marginTop: 24 }}>
+        <Panel
+          eyebrow="Pacing"
+          title="Capital deployed by vintage"
+          footnote="Fair value equals current mark where available, otherwise cost basis. The active column shows positions in this vintage that are still operating or fundraising."
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {[
+                    ["Vintage", "left"],
+                    ["Deals", "right"],
+                    ["Active", "right"],
+                    ["Deployed", "right"],
+                    ["Fair Value", "right"],
+                    ["Status", "left"],
+                  ].map(([h, a]) => (
+                    <th key={h} style={{
+                      padding: "10px 12px",
+                      textAlign: a,
+                      fontFamily: fontMono, fontSize: 9.5,
+                      letterSpacing: "0.16em", textTransform: "uppercase",
+                      color: COLORS.mute, fontWeight: 600,
+                      borderBottom: `1px solid ${COLORS.ink}`,
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {vintageCapital.map((v, i) => {
+                  const allActive = v.active === v.deals;
+                  const allResolved = v.active === 0;
+                  return (
+                    <tr key={v.year} style={{
+                      borderBottom: i === vintageCapital.length - 1 ? "none" : `1px solid rgba(0,0,0,0.06)`,
+                    }}>
+                      <td style={{
+                        padding: "12px",
+                        fontFamily: fontHead, fontSize: 16, fontWeight: 500,
+                        color: COLORS.ink,
+                      }}>{v.year}</td>
+                      <td style={{ ...cellNum, padding: "12px" }}>{v.deals}</td>
+                      <td style={{
+                        ...cellNum, padding: "12px",
+                        color: v.active > 0 ? COLORS.ink : COLORS.muteSoft,
+                        fontWeight: v.active > 0 ? 600 : 400,
+                      }}>{v.active}</td>
+                      <td style={{
+                        ...cellNum, padding: "12px",
+                        color: COLORS.ink, fontWeight: 500,
+                      }}>{fmtUsd(v.deployed)}</td>
+                      <td style={{
+                        ...cellNum, padding: "12px",
+                        color: COLORS.ink, fontWeight: 500,
+                      }}>{fmtUsd(v.fairValue)}</td>
+                      <td style={{ padding: "12px" }}>
+                        <span style={{
+                          fontFamily: fontMono, fontSize: 10,
+                          letterSpacing: "0.14em", textTransform: "uppercase",
+                          fontWeight: allActive ? 700 : 500,
+                          color: allActive ? COLORS.ink : allResolved ? COLORS.mute : COLORS.inkSoft,
+                        }}>
+                          {allActive ? "Fully Active" : allResolved ? "Fully Resolved" : "Mixed"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: `1px solid ${COLORS.ink}` }}>
+                  <td style={{
+                    padding: "14px 12px",
+                    fontFamily: fontMono, fontSize: 10,
+                    letterSpacing: "0.18em", textTransform: "uppercase",
+                    color: COLORS.ink, fontWeight: 700,
+                  }}>Total</td>
+                  <td style={{ ...cellNum, padding: "14px 12px", color: COLORS.ink, fontWeight: 700 }}>
+                    {totals.count}
+                  </td>
+                  <td style={{ ...cellNum, padding: "14px 12px", color: COLORS.ink, fontWeight: 700 }}>
+                    {totals.active}
+                  </td>
+                  <td style={{ ...cellNum, padding: "14px 12px", color: COLORS.ink, fontWeight: 700 }}>
+                    {fmtUsd(capital.deployed)}
+                  </td>
+                  <td style={{ ...cellNum, padding: "14px 12px", color: COLORS.ink, fontWeight: 700 }}>
+                    {fmtUsd(capital.totalFairValue)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </Panel>
+      </div>
+
+      {/* Per-position economics */}
+      <div style={{ marginTop: 24 }}>
+        <PositionEconomicsTable />
+      </div>
+
+      {/* Pending updates / in-flight marks */}
+      <PendingUpdatesPanel />
+
+      {/* Methodology callout */}
+      <div style={{
+        marginTop: 24,
+        background: COLORS.ink,
+        color: COLORS.paper,
+        padding: "28px 28px 24px",
+        position: "relative",
+      }}>
+        <span style={{
+          position: "absolute", top: 0, left: 0,
+          width: 64, height: 8, background: COLORS.gold,
+        }} />
+        <div style={{
+          fontFamily: fontMono, fontSize: 10,
+          letterSpacing: "0.22em", textTransform: "uppercase",
+          color: COLORS.gold, marginBottom: 14,
+        }}>Valuation Methodology</div>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: 24,
+          fontFamily: fontBody, fontSize: 13.5,
+          lineHeight: 1.55, color: "rgba(255,255,255,0.85)",
+        }}>
+          <div>
+            <div style={{ color: COLORS.gold, fontWeight: 600, marginBottom: 6, fontSize: 12.5, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+              Active positions
+            </div>
+            Marked at last priced-round post-money × AACE ownership, or at company-stated
+            unrealized MOIC × cost basis. Positions without a recent verifiable valuation
+            are held at cost as a conservative floor.
+          </div>
+          <div>
+            <div style={{ color: COLORS.gold, fontWeight: 600, marginBottom: 6, fontSize: 12.5, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+              Realized exits
+            </div>
+            Booked at actual cash + liquid stock received. For partial exits, the residual
+            stake is marked separately and added to cumulative proceeds for total economic
+            outcome.
+          </div>
+          <div>
+            <div style={{ color: COLORS.gold, fontWeight: 600, marginBottom: 6, fontSize: 12.5, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+              Worthless positions
+            </div>
+            Bankruptcies and acquisitions where AACE assumes no residual value (Bellwethr,
+            GRIT, RNAissance) are recorded at the realized cash component only.
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---- Pending updates panel ---------------------------------------------
+function PendingUpdatesPanel() {
+  // In flight: marks expected imminently
+  const inFlight = portfolioData.filter(c => {
+    if (!c.markNote) return false;
+    const lower = c.markNote.toLowerCase();
+    return lower.includes("pending") || lower.includes("awaiting") ||
+           lower.includes("rumored") || lower.includes("expected");
+  });
+  // Missing data: no recent verifiable mark and no in-flight signal
+  const missing = portfolioData.filter(c => {
+    if (inFlight.includes(c)) return false;
+    if (c.status !== "Alive" && c.status !== "Fundraising") return false;
+    return c.currentMark === null;
+  });
+
+  if (inFlight.length === 0 && missing.length === 0) return null;
+
+  const renderRow = (c, accentColor) => (
+    <div key={c.id} style={{
+      display: "grid",
+      gridTemplateColumns: "auto 1fr auto",
+      gap: 16, alignItems: "start",
+      paddingBottom: 14,
+      borderBottom: `1px dashed rgba(0,0,0,0.08)`,
+    }}>
+      <div style={{
+        width: 6, height: 6, borderRadius: "50%",
+        background: accentColor,
+        marginTop: 8,
+      }} />
+      <div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <span style={{
+            fontFamily: fontHead, fontSize: 17, fontWeight: 500,
+            color: COLORS.ink, letterSpacing: "-0.005em",
+          }}>{c.name}</span>
+          <StatusPill status={c.status} dense />
+        </div>
+        <div style={{
+          fontFamily: fontBody, fontSize: 13, color: COLORS.inkSoft,
+          lineHeight: 1.5, marginTop: 6,
+        }}>{c.markNote || "No recent valuation data on file."}</div>
+      </div>
+      <div style={{
+        fontFamily: fontMono, fontSize: 10,
+        letterSpacing: "0.14em", textTransform: "uppercase",
+        color: COLORS.mute, whiteSpace: "nowrap", paddingTop: 4,
+      }}>
+        {fmtUsd(c.invested)} cost
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }} className="aace-2col">
+      {/* In flight */}
+      {inFlight.length > 0 && (
+        <Panel
+          eyebrow="In Flight"
+          title="Marks awaiting confirmation"
+          footnote="Updates expected from the company or a credible third party. Will be reflected in marks once received."
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {inFlight.map(c => renderRow(c, COLORS.gold))}
+          </div>
+        </Panel>
+      )}
+      {/* Missing data */}
+      {missing.length > 0 && (
+        <Panel
+          eyebrow="Held at Cost"
+          title="Active positions without a recent mark"
+          footnote="No priced round has been disclosed to AACE recently enough to support a verified mark. Held at cost as the conservative floor."
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {missing.map(c => renderRow(c, COLORS.muteSoft))}
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+// ---- Per-position economics table -------------------------------------
+function PositionEconomicsTable() {
+  // Sort by fair value descending; null marks tied broken by year descending
+  const rows = [...portfolioData].sort((a, b) => fairValue(b) - fairValue(a) || b.year - a.year);
+  return (
+    <Panel
+      eyebrow="Position Detail"
+      title="Per-company economics"
+      footnote="Mark date shows when the underlying valuation data was sourced. Stale marks (older than 18 months) are flagged. MOIC is fair value divided by cost. Sources are documented in the underlying data file."
+    >
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+          <thead>
+            <tr>
+              {[
+                ["Company", "left"],
+                ["Status", "left"],
+                ["Cost", "right"],
+                ["Realized", "right"],
+                ["Mark", "right"],
+                ["Fair Value", "right"],
+                ["MOIC", "right"],
+                ["As Of", "left"],
+              ].map(([h, a]) => (
+                <th key={h} style={{
+                  padding: "10px 12px",
+                  textAlign: a,
+                  fontFamily: fontMono, fontSize: 9.5,
+                  letterSpacing: "0.16em", textTransform: "uppercase",
+                  color: COLORS.mute, fontWeight: 600,
+                  borderBottom: `1px solid ${COLORS.ink}`,
+                  whiteSpace: "nowrap",
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c, i) => {
+              const fv = fairValue(c);
+              const moic = c.invested > 0 ? fv / c.invested : 0;
+              const moicTone = moic >= 1.5 ? COLORS.ink
+                : moic >= 1 ? COLORS.inkSoft
+                : moic >= 0.5 ? COLORS.bluff
+                : COLORS.muteSoft;
+              const moicWeight = moic >= 1.5 ? 600 : 500;
+              const isStale = c.markAsOf && (() => {
+                const ageMonths = (new Date("2026-03-06") - new Date(c.markAsOf)) / (1000 * 60 * 60 * 24 * 30);
+                return ageMonths > 18;
+              })();
+              const dateLabel = c.markAsOf
+                ? new Date(c.markAsOf).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+                : "—";
+              return (
+                <tr key={c.id} style={{
+                  borderBottom: i === rows.length - 1 ? "none" : `1px solid rgba(0,0,0,0.06)`,
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = COLORS.card}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                >
+                  <td style={{ padding: "12px" }}>
+                    <div style={{
+                      fontFamily: fontHead, fontSize: 15, fontWeight: 500,
+                      color: COLORS.ink, letterSpacing: "-0.005em",
+                    }}>{c.name}</div>
+                    {c.markNote && (
+                      <div title={c.markNote} style={{
+                        fontFamily: fontBody, fontSize: 11,
+                        color: COLORS.mute, marginTop: 2,
+                        maxWidth: 260,
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}>{c.markNote}</div>
+                    )}
+                  </td>
+                  <td style={{ padding: "12px" }}>
+                    <StatusPill status={c.status} dense />
+                  </td>
+                  <td style={{ ...cellNum, padding: "12px", color: COLORS.inkSoft }}>
+                    {fmtUsd(c.invested)}
+                  </td>
+                  <td style={{
+                    ...cellNum, padding: "12px",
+                    color: c.realizedProceeds !== null && c.realizedProceeds > 0 ? COLORS.ink : COLORS.muteSoft,
+                    fontWeight: c.realizedProceeds !== null && c.realizedProceeds > 0 ? 600 : 400,
+                  }}>
+                    {c.realizedProceeds !== null ? fmtUsd(c.realizedProceeds) : "—"}
+                  </td>
+                  <td style={{
+                    ...cellNum, padding: "12px",
+                    color: c.currentMark !== null ? COLORS.ink : COLORS.muteSoft,
+                    fontWeight: c.currentMark !== null ? 600 : 400,
+                  }}>
+                    {c.currentMark !== null ? fmtUsd(c.currentMark) : "—"}
+                  </td>
+                  <td style={{
+                    ...cellNum, padding: "12px",
+                    fontFamily: fontHead, fontSize: 15, fontWeight: 500,
+                    color: COLORS.ink, letterSpacing: "-0.005em",
+                  }}>
+                    {fmtUsd(fv)}
+                  </td>
+                  <td style={{
+                    ...cellNum, padding: "12px",
+                    fontFamily: fontMono, fontSize: 13,
+                    color: moicTone, fontWeight: moicWeight,
+                  }}>
+                    {moic === 0 ? "0.00×" : `${moic.toFixed(2)}×`}
+                  </td>
+                  <td style={{
+                    padding: "12px",
+                    fontFamily: fontMono, fontSize: 11,
+                    color: isStale ? COLORS.bluff : COLORS.mute,
+                    letterSpacing: "0.04em",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {dateLabel}
+                    {isStale && (
+                      <span title="Mark older than 18 months" style={{
+                        marginLeft: 6, padding: "1px 5px",
+                        background: COLORS.gold, color: COLORS.ink,
+                        fontSize: 9, letterSpacing: "0.1em",
+                        fontWeight: 700, textTransform: "uppercase",
+                      }}>stale</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ borderTop: `1px solid ${COLORS.ink}` }}>
+              <td colSpan={2} style={{
+                padding: "14px 12px",
+                fontFamily: fontMono, fontSize: 10,
+                letterSpacing: "0.18em", textTransform: "uppercase",
+                color: COLORS.ink, fontWeight: 700,
+              }}>Portfolio Total</td>
+              <td style={{ ...cellNum, padding: "14px 12px", color: COLORS.ink, fontWeight: 700 }}>
+                {fmtUsd(capital.deployed)}
+              </td>
+              <td style={{ ...cellNum, padding: "14px 12px", color: COLORS.ink, fontWeight: 700 }}>
+                {fmtUsd(capital.realizedProceeds)}
+              </td>
+              <td style={{ ...cellNum, padding: "14px 12px", color: COLORS.ink, fontWeight: 700 }}>
+                {fmtUsd(portfolioData.reduce((s, c) => s + (c.currentMark || 0), 0))}
+              </td>
+              <td style={{ ...cellNum, padding: "14px 12px",
+                fontFamily: fontHead, fontSize: 18, fontWeight: 500,
+                color: COLORS.ink, letterSpacing: "-0.01em",
+              }}>
+                {fmtUsd(capital.totalFairValue)}
+              </td>
+              <td style={{
+                ...cellNum, padding: "14px 12px",
+                fontFamily: fontMono, fontSize: 14, fontWeight: 700,
+                color: COLORS.ink,
+              }}>
+                {capital.tvpi.toFixed(2)}×
+              </td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </Panel>
+  );
+}
+
+function MarkCoverageWidget() {
+  const activeCount = totals.active;
+  const activeMarked = capital.activeMarked;
+  const activeAtCost = activeCount - activeMarked;
+  const exitedKnown = portfolioData.filter(c =>
+    (c.status === "Acquired" || c.status === "Partial Exit") && c.realizedProceeds !== null
+  ).length;
+  const exitedTotal = totals.exits;
+  const exitedUnknown = exitedTotal - exitedKnown;
+
+  // Big gauge: % of active positions marked
+  const pct = activeCount > 0 ? Math.round((activeMarked / activeCount) * 100) : 0;
+  const ringSize = 132;
+  const ringStroke = 12;
+  const ringRadius = (ringSize - ringStroke) / 2;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringCircumference - (pct / 100) * ringCircumference;
+
+  return (
+    <div>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 24,
+        paddingBottom: 20,
+        borderBottom: `1px dashed rgba(0,0,0,0.1)`,
+        marginBottom: 18,
+      }}>
+        {/* SVG ring */}
+        <div style={{ position: "relative", width: ringSize, height: ringSize, flexShrink: 0 }}>
+          <svg width={ringSize} height={ringSize} style={{ display: "block", transform: "rotate(-90deg)" }}>
+            <circle
+              cx={ringSize/2} cy={ringSize/2} r={ringRadius}
+              fill="none" stroke={COLORS.card} strokeWidth={ringStroke}
+            />
+            <circle
+              cx={ringSize/2} cy={ringSize/2} r={ringRadius}
+              fill="none" stroke={COLORS.gold} strokeWidth={ringStroke}
+              strokeLinecap="round"
+              strokeDasharray={ringCircumference}
+              strokeDashoffset={ringOffset}
+              style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)" }}
+            />
+          </svg>
+          <div style={{
+            position: "absolute", inset: 0,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            pointerEvents: "none",
+          }}>
+            <div style={{
+              fontFamily: fontStat, fontSize: 44, fontWeight: 700,
+              lineHeight: 0.9, color: COLORS.ink, letterSpacing: "0.01em",
+            }}>{pct}%</div>
+            <div style={{
+              fontFamily: fontMono, fontSize: 9,
+              letterSpacing: "0.16em", textTransform: "uppercase",
+              color: COLORS.mute, marginTop: 4,
+            }}>marked</div>
+          </div>
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontFamily: fontMono, fontSize: 10,
+            letterSpacing: "0.16em", textTransform: "uppercase",
+            color: COLORS.mute, marginBottom: 8,
+          }}>Active Positions</div>
+          <div style={{
+            fontFamily: fontHead, fontSize: 22, lineHeight: 1.15,
+            color: COLORS.ink, fontWeight: 500, letterSpacing: "-0.01em",
+            marginBottom: 8,
+          }}>
+            {activeMarked} of {activeCount} carry a verified mark.
+          </div>
+          <div style={{
+            fontFamily: fontBody, fontSize: 13, color: COLORS.mute,
+            lineHeight: 1.45,
+          }}>
+            {activeAtCost > 0
+              ? `${activeAtCost} ${activeAtCost === 1 ? "position is" : "positions are"} held at $50K cost basis pending last-round data.`
+              : "All active positions carry a current mark."}
+          </div>
+        </div>
+      </div>
+
+      {/* Breakdown rows */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <CoverageRow
+          label="Active — marked to last round"
+          value={activeMarked}
+          total={activeCount}
+          tone="ink"
+        />
+        <CoverageRow
+          label="Active — held at cost"
+          value={activeAtCost}
+          total={activeCount}
+          tone="mute"
+        />
+        <CoverageRow
+          label="Exits — proceeds recorded"
+          value={exitedKnown}
+          total={exitedTotal}
+          tone="gold"
+        />
+        {exitedUnknown > 0 && (
+          <CoverageRow
+            label="Exits — pending proceeds data"
+            value={exitedUnknown}
+            total={exitedTotal}
+            tone="mute"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CoverageRow({ label, value, total, tone }) {
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  const colorMap = {
+    ink: COLORS.ink,
+    gold: COLORS.goldDeep,
+    mute: COLORS.muteSoft,
+  };
+  const fg = colorMap[tone] || COLORS.ink;
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "1fr auto",
+      alignItems: "center",
+      gap: 12,
+    }}>
+      <div>
+        <div style={{
+          fontFamily: fontBody, fontSize: 12.5,
+          color: COLORS.inkSoft, marginBottom: 4,
+        }}>{label}</div>
+        <div style={{ height: 4, background: COLORS.card, position: "relative" }}>
+          <div style={{
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: `${pct}%`, background: fg,
+            transition: "width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)",
+          }} />
+        </div>
+      </div>
+      <div style={{
+        fontFamily: fontMono, fontSize: 12, color: COLORS.ink,
+        whiteSpace: "nowrap",
+      }}>
+        <span style={{ fontWeight: 600 }}>{value}</span>
+        <span style={{ color: COLORS.muteSoft }}> / {total}</span>
+      </div>
+    </div>
+  );
+}
+
+function CohortBlock({ label, value, sub, highlight }) {
+  return (
+    <div style={{
+      padding: "16px 18px",
+      background: highlight ? COLORS.goldPale : COLORS.bg,
+      border: `1px solid ${highlight ? COLORS.goldDeep : "rgba(0,0,0,0.08)"}`,
+    }}>
+      <div style={{
+        fontFamily: fontMono, fontSize: 9.5,
+        letterSpacing: "0.18em", textTransform: "uppercase",
+        color: COLORS.mute, marginBottom: 8,
+      }}>{label}</div>
+      <div style={{
+        fontFamily: fontStat, fontSize: 44, fontWeight: 700,
+        lineHeight: 0.85, letterSpacing: "0.01em", color: COLORS.ink,
+      }}>{value}</div>
+      <div style={{
+        fontFamily: fontBody, fontSize: 12, color: COLORS.mute,
+        marginTop: 6,
+      }}>{sub}</div>
+    </div>
+  );
+}
+
+function InsightTile({ kicker, value, stat, description, tone = "gold" }) {
+  const isDark = tone === "dark";
+  return (
+    <div style={{
+      background: isDark ? COLORS.ink : COLORS.paper,
+      color: isDark ? COLORS.paper : COLORS.ink,
+      padding: 24,
+      border: `1px solid ${isDark ? COLORS.ink : "rgba(0,0,0,0.08)"}`,
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      {!isDark && (
+        <span style={{
+          position: "absolute", top: 0, right: 0,
+          width: 8, height: 32, background: COLORS.gold,
+        }} />
+      )}
+      {isDark && (
+        <span style={{
+          position: "absolute", top: 0, left: 0,
+          width: 32, height: 8, background: COLORS.gold,
+        }} />
+      )}
+      <div style={{
+        fontFamily: fontMono, fontSize: 10,
+        letterSpacing: "0.2em", textTransform: "uppercase",
+        color: isDark ? COLORS.gold : COLORS.mute,
+        marginBottom: 10,
+      }}>{kicker}</div>
+      <div style={{
+        fontFamily: fontHead, fontSize: 32, fontWeight: 500,
+        lineHeight: 1, letterSpacing: "-0.02em",
+        marginBottom: 8,
+      }}>{value}</div>
+      <div style={{
+        fontFamily: fontMono, fontSize: 11.5,
+        color: isDark ? "rgba(255,255,255,0.65)" : COLORS.inkSoft,
+        marginBottom: 12, letterSpacing: "0.02em",
+      }}>{stat}</div>
+      <div style={{
+        fontFamily: fontBody, fontSize: 13, lineHeight: 1.5,
+        color: isDark ? "rgba(255,255,255,0.75)" : COLORS.inkSoft,
+      }}>{description}</div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
