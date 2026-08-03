@@ -16,7 +16,7 @@
 <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
 
 <style>
@@ -33,6 +33,23 @@
 </head>
 <body>
 <div id="root"><div class="aace-loading">Loading portfolio&hellip;</div></div>
+
+<script>
+  // Watchdog: if the app hasn't mounted within 15s, name the missing dependency
+  // instead of showing an endless loading state.
+  setTimeout(function () {
+    var el = document.querySelector(".aace-loading");
+    if (!el) return; // app mounted fine
+    var missing = [];
+    if (typeof React === "undefined") missing.push("React");
+    if (typeof ReactDOM === "undefined") missing.push("ReactDOM");
+    if (typeof Recharts === "undefined") missing.push("Recharts");
+    if (typeof Babel === "undefined") missing.push("Babel");
+    el.textContent = missing.length
+      ? "Could not load: " + missing.join(", ") + ". Check your connection and refresh."
+      : "The dashboard failed to start. Open the browser console for details, then refresh.";
+  }, 15000);
+</script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo, useEffect } = React;
