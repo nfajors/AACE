@@ -810,62 +810,100 @@ function CumulativeChart() {
   );
 }
 
+const TREEMAP_TONES = [
+  COLORS.ink, "#3F3F3F", "#5C5C5C", COLORS.bluff,
+  COLORS.gold, COLORS.goldDeep, COLORS.goldSoft, COLORS.limestone,
+];
+
 function IndustryTreemap() {
-  // Recharts Treemap with custom content for editorial styling
-  const tones = [
-    COLORS.ink, "#3F3F3F", "#5C5C5C", COLORS.bluff,
-    COLORS.gold, COLORS.goldDeep, COLORS.goldSoft, COLORS.limestone,
-  ];
+  // Recharts Treemap with custom content for editorial styling.
+  // Small sectors get unreadably small cells, so a color-keyed legend
+  // below the chart guarantees every sector stays identifiable.
   const treeData = industryBreakdown.map((d, i) => ({
     name: d.name,
     size: d.value,
-    fill: tones[i % tones.length],
+    fill: TREEMAP_TONES[i % TREEMAP_TONES.length],
   }));
   return (
-    <div style={{ width: "100%", height: 280 }}>
-      <ResponsiveContainer>
-        <Treemap
-          data={treeData}
-          dataKey="size"
-          stroke={COLORS.bg}
-          fill={COLORS.ink}
-          content={<TreemapCell />}
-          isAnimationActive={false}
-        />
-      </ResponsiveContainer>
+    <div>
+      <div style={{ width: "100%", height: 280 }}>
+        <ResponsiveContainer>
+          <Treemap
+            data={treeData}
+            dataKey="size"
+            stroke={COLORS.bg}
+            fill={COLORS.ink}
+            content={<TreemapCell />}
+            isAnimationActive={false}
+          />
+        </ResponsiveContainer>
+      </div>
+      <div style={{
+        display: "flex", flexWrap: "wrap", gap: "8px 18px",
+        marginTop: 14,
+      }}>
+        {industryBreakdown.map((d, i) => (
+          <span key={d.name} style={{
+            display: "inline-flex", alignItems: "center", gap: 7,
+            fontFamily: fontBody, fontSize: 12, color: COLORS.ink,
+          }}>
+            <span style={{
+              width: 10, height: 10, flexShrink: 0,
+              background: TREEMAP_TONES[i % TREEMAP_TONES.length],
+              border: `1px solid rgba(0,0,0,0.15)`,
+              display: "inline-block",
+            }} />
+            {d.name}
+            <span style={{ color: COLORS.mute, fontWeight: 600 }}>{d.value}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function TreemapCell(props) {
-  const { x, y, width, height, name, value, payload, depth } = props;
+  const { x, y, width, height, name, value, payload, depth, index } = props;
   if (width <= 0 || height <= 0) return null;
   // Only render leaf nodes (depth === 1 in Recharts Treemap)
   if (depth !== undefined && depth !== 1) return null;
   const fill = (payload && payload.fill) || props.fill;
   const isDark = fill === COLORS.ink || fill === "#3F3F3F" || fill === "#5C5C5C" || fill === COLORS.bluff || fill === COLORS.goldDeep;
   const txt = isDark ? COLORS.paper : COLORS.ink;
-  const showName = width > 70 && height > 36;
-  const showCount = width > 50 && height > 50;
+  const pad = 10;
+  // Scale the name down before hiding it, and never let text escape its cell.
+  const nameSize = width > 110 ? 13 : width > 78 ? 11.5 : 10;
+  const approxNameWidth = String(name || "").length * nameSize * 0.62;
+  const showName = height > 30 && (width - pad * 2) > approxNameWidth;
+  const countSize = Math.max(11, Math.min(width / 4, height / 2.5, 36));
+  const showCount = width > 26 && height > (showName ? 52 : 26);
   const cellValue = value ?? (payload && payload.size);
+  const clipId = `tm-clip-${index != null ? index : `${Math.round(x)}-${Math.round(y)}`}`;
   return (
     <g>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={x} y={y} width={width} height={height} />
+        </clipPath>
+      </defs>
       <rect x={x} y={y} width={width} height={height} fill={fill} stroke={COLORS.bg} strokeWidth={2} />
-      {showName && (
-        <text
-          x={x + 12} y={y + 22}
-          fontFamily={fontBody} fontSize={13} fontWeight={600}
-          fill={txt}
-        >{name}</text>
-      )}
-      {showCount && (
-        <text
-          x={x + 12} y={y + height - 14}
-          fontFamily={fontHead} fontSize={Math.min(width / 4, height / 2.5, 36)}
-          fontWeight={500}
-          fill={txt}
-        >{cellValue}</text>
-      )}
+      <g clipPath={`url(#${clipId})`}>
+        {showName && (
+          <text
+            x={x + pad} y={y + nameSize + 7}
+            fontFamily={fontBody} fontSize={nameSize} fontWeight={600}
+            fill={txt} stroke="none"
+          >{name}</text>
+        )}
+        {showCount && (
+          <text
+            x={x + pad} y={y + height - 10}
+            fontFamily={fontHead} fontSize={countSize}
+            fontWeight={500}
+            fill={txt} stroke="none"
+          >{cellValue}</text>
+        )}
+      </g>
     </g>
   );
 }
