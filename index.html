@@ -875,8 +875,11 @@ function TreemapCell(props) {
   const nameSize = width > 110 ? 13 : width > 78 ? 11.5 : 10;
   const approxNameWidth = String(name || "").length * nameSize * 0.62;
   const showName = height > 30 && (width - pad * 2) > approxNameWidth;
+  // Tall, narrow cells (e.g. a 1-deal sector) can't fit a horizontal name,
+  // but the name fits rotated 90 degrees along the cell's height.
+  const showNameVertical = !showName && width > 20 && (height - pad * 2) > approxNameWidth;
   const countSize = Math.max(11, Math.min(width / 4, height / 2.5, 36));
-  const showCount = width > 26 && height > (showName ? 52 : 26);
+  const showCount = width > 26 && height > (showName ? 52 : (showNameVertical ? approxNameWidth + pad * 2 + 24 : 26));
   const cellValue = value ?? (payload && payload.size);
   const clipId = `tm-clip-${index != null ? index : `${Math.round(x)}-${Math.round(y)}`}`;
   return (
@@ -893,6 +896,15 @@ function TreemapCell(props) {
             x={x + pad} y={y + nameSize + 7}
             fontFamily={fontBody} fontSize={nameSize} fontWeight={600}
             fill={txt} stroke="none"
+          >{name}</text>
+        )}
+        {showNameVertical && (
+          <text
+            x={x + width / 2} y={y + pad}
+            transform={`rotate(90 ${x + width / 2} ${y + pad})`}
+            fontFamily={fontBody} fontSize={Math.min(nameSize, width - 6)} fontWeight={600}
+            fill={txt} stroke="none"
+            dominantBaseline="central"
           >{name}</text>
         )}
         {showCount && (
